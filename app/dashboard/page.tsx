@@ -27,6 +27,13 @@ export default function Dashboard() {
       </button>
 
       <button
+        onClick={() => (window.location.href = "/words")}
+        className="mt-4 bg-blue-500 px-6 py-3 rounded-lg font-bold hover:bg-blue-600"
+      >
+        📚 View All Words
+      </button>
+
+      <button
         onClick={handleLogout}
         className="mt-4 bg-red-500 px-6 py-3 rounded-lg font-bold hover:bg-red-600"
       >
