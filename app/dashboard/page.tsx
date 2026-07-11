@@ -11,10 +11,17 @@ import {
   limit,
 } from "firebase/firestore";
 
+interface Word {
+  id: string;
+  word: string;
+  meaning: string;
+  category: string;
+}
+
 export default function Dashboard() {
   const [totalWords, setTotalWords] = useState(0);
   const [totalCategories, setTotalCategories] = useState(0);
-  const [recentWords, setRecentWords] = useState<any[]>([]);
+  const [recentWords, setRecentWords] = useState<Word[]>([]);
 
   useEffect(() => {
     loadStats();
@@ -38,20 +45,20 @@ export default function Dashboard() {
 
       setTotalCategories(categories.size);
 
-      const recentQuery = query(
+      const q = query(
         collection(db, "words"),
         orderBy("createdAt", "desc"),
         limit(5)
       );
 
-      const recentSnapshot = await getDocs(recentQuery);
+      const recentSnapshot = await getDocs(q);
 
-      const recent = recentSnapshot.docs.map((doc) => ({
+      const latest = recentSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data(),
+        ...(doc.data() as Omit<Word, "id">),
       }));
 
-      setRecentWords(recent);
+      setRecentWords(latest);
 
     } catch (error) {
       console.error(error);
@@ -98,59 +105,91 @@ export default function Dashboard() {
 
       </div>
 
-      <button
-        onClick={() => (window.location.href = "/add-word")}
-        className="mt-10 bg-green-500 px-6 py-3 rounded-lg font-bold hover:bg-green-600"
-      >
-        ➕ Add New Word
-      </button>
+      <div className="grid grid-cols-2 gap-4 mt-10 w-[500px]">
 
-      <button
-        onClick={() => (window.location.href = "/words")}
-        className="mt-4 bg-blue-500 px-6 py-3 rounded-lg font-bold hover:bg-blue-600"
-      >
-        📚 View All Words
-      </button>
+        <button
+          onClick={() => (window.location.href = "/add-word")}
+          className="bg-green-500 hover:bg-green-600 py-3 rounded-lg font-bold"
+        >
+          ➕ Add Word
+        </button>
 
-      <div className="mt-10 w-full max-w-xl bg-slate-800 rounded-xl p-6">
+        <button
+          onClick={() => (window.location.href = "/words")}
+          className="bg-blue-500 hover:bg-blue-600 py-3 rounded-lg font-bold"
+        >
+          📚 View Words
+        </button>
 
-        <h2 className="text-2xl font-bold text-yellow-400 mb-4">
-          📋 Recent Words
+        <button
+          onClick={() => (window.location.href = "/bulk-import")}
+          className="bg-purple-500 hover:bg-purple-600 py-3 rounded-lg font-bold"
+        >
+          📥 Bulk Import
+        </button>
+                <button
+          onClick={() => (window.location.href = "/daily")}
+          className="bg-orange-500 hover:bg-orange-600 py-3 rounded-lg font-bold"
+        >
+          🎯 Daily Word
+        </button>
+
+      </div>
+
+      <div className="mt-10 w-[700px] bg-slate-800 rounded-xl p-6">
+
+        <h2 className="text-2xl font-bold text-yellow-400 mb-5">
+          📋 Latest 5 Words
         </h2>
-                {recentWords.length === 0 ? (
-          <p className="text-gray-400">
-            No words found.
-          </p>
-        ) : (
-          recentWords.map((word: any) => (
-            <div
-              key={word.id}
-              className="flex justify-between items-center border-b border-slate-700 py-3"
-            >
-              <div>
-                <h3 className="font-bold text-lg text-white">
-                  {word.word}
-                </h3>
 
-                <p className="text-sm text-gray-400">
-                  {word.meaning}
-                </p>
+        {recentWords.length === 0 ? (
+
+          <p className="text-gray-400">
+            No words available.
+          </p>
+
+        ) : (
+
+          <div className="space-y-4">
+
+            {recentWords.map((item) => (
+
+              <div
+                key={item.id}
+                className="flex justify-between items-center border-b border-slate-700 pb-3"
+              >
+
+                <div>
+
+                  <h3 className="text-xl font-bold text-green-400">
+                    {item.word}
+                  </h3>
+
+                  <p className="text-gray-300">
+                    {item.meaning}
+                  </p>
+
+                </div>
+
+                <span className="bg-blue-500 px-3 py-1 rounded-full text-sm">
+                  {item.category}
+                </span>
+
               </div>
 
-              <span className="bg-blue-500 px-3 py-1 rounded-lg text-sm">
-                {word.category}
-              </span>
-            </div>
-          ))
+            ))}
+
+          </div>
+
         )}
 
       </div>
 
       <button
         onClick={handleLogout}
-        className="mt-8 bg-red-500 px-6 py-3 rounded-lg font-bold hover:bg-red-600"
+        className="mt-10 bg-red-500 hover:bg-red-600 px-8 py-3 rounded-lg font-bold"
       >
-        Logout
+        🚪 Logout
       </button>
 
     </main>
