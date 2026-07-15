@@ -17,6 +17,11 @@ export default function AddWordPage() {
   const [meaning, setMeaning] = useState("");
   const [example, setExample] = useState("");
   const [category, setCategory] = useState("");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
+  const [pronunciation, setPronunciation] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  const [antonyms, setAntonyms] = useState("");
+  const [difficulty, setDifficulty] = useState("Easy");
   const [loading, setLoading] = useState(false);
 
   const saveWord = async () => {
@@ -34,6 +39,17 @@ export default function AddWordPage() {
         meaning: meaning.trim(),
         example: example.trim(),
         category: category.trim(),
+        partOfSpeech: partOfSpeech.trim(),
+        pronunciation: pronunciation.trim(),
+        synonyms: synonyms
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        antonyms: antonyms
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        difficulty,
         createdAt: serverTimestamp(),
       });
 
@@ -43,6 +59,11 @@ export default function AddWordPage() {
       setMeaning("");
       setExample("");
       setCategory("");
+      setPartOfSpeech("");
+      setPronunciation("");
+      setSynonyms("");
+      setAntonyms("");
+      setDifficulty("Easy");
     } catch (error) {
       console.error(error);
       alert("Error saving word");
@@ -84,8 +105,46 @@ export default function AddWordPage() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           placeholder="Category"
-          className="w-full p-3 mb-6 rounded bg-slate-700 text-white outline-none"
+          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
         />
+
+        <input
+          value={partOfSpeech}
+          onChange={(e) => setPartOfSpeech(e.target.value)}
+          placeholder="Part of Speech (Noun, Verb, Adjective...)"
+          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+        />
+
+        <input
+          value={pronunciation}
+          onChange={(e) => setPronunciation(e.target.value)}
+          placeholder="Pronunciation (Example: /ˈæpəl/)"
+          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+        />
+
+        <input
+          value={synonyms}
+          onChange={(e) => setSynonyms(e.target.value)}
+          placeholder="Synonyms (comma separated)"
+          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+        />
+
+        <input
+          value={antonyms}
+          onChange={(e) => setAntonyms(e.target.value)}
+          placeholder="Antonyms (comma separated)"
+          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+        />
+
+        <select
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value)}
+          className="w-full p-3 mb-6 rounded bg-slate-700 text-white outline-none"
+        >
+          <option>Easy</option>
+          <option>Medium</option>
+          <option>Hard</option>
+        </select>
 
         <button
           disabled={loading}

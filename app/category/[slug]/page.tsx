@@ -108,7 +108,7 @@ export default function CategoryPage() {
               {/* 🔤 Read More Button - Professional Gradient */}
               <div className="mt-6">
                 <Link
-                  href={`/word/${item.word.toLowerCase()}`}
+                  href={`/dictionary/${item.word.toLowerCase()}`}
                   className="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition shadow-lg hover:shadow-cyan-500/30"
                 >
                   Read More →

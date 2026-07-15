@@ -18,6 +18,11 @@ interface Word {
   meaning: string;
   example: string;
   category: string;
+  partOfSpeech?: string;
+  pronunciation?: string;
+  synonyms?: string[];
+  antonyms?: string[];
+  difficulty?: string;
 }
 
 export default function WordDetailsPage() {
@@ -77,7 +82,7 @@ export default function WordDetailsPage() {
         const relatedQuery = query(
           collection(db, "words"),
           where("category", "==", selectedWord.category),
-          limit(6) // Load 6, will filter current
+          limit(10)
         );
 
         const relatedSnapshot = await getDocs(relatedQuery);
@@ -185,7 +190,7 @@ export default function WordDetailsPage() {
   // Loading State
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex justify-center items-center text-white p-4">
+      <main className="min-h-screen bg-slate-900 flex justify-center items-center p-4">
         <div className="text-center">
           <div className="relative inline-block">
             <div className="animate-spin rounded-full h-20 w-20 border-4 border-yellow-400 border-t-transparent"></div>
@@ -207,7 +212,7 @@ export default function WordDetailsPage() {
   // Error State
   if (error) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex justify-center items-center text-white p-4">
+      <main className="min-h-screen bg-slate-900 flex justify-center items-center p-4">
         <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">🔍</div>
           <h1 className="text-3xl font-bold text-red-400 mb-2">Word Not Found</h1>
@@ -233,7 +238,7 @@ export default function WordDetailsPage() {
 
   if (!wordData) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex justify-center items-center text-white p-4">
+      <main className="min-h-screen bg-slate-900 flex justify-center items-center p-4">
         <div className="text-center">
           <div className="text-6xl mb-4">📭</div>
           <h1 className="text-3xl font-bold text-gray-400">No Data Available</h1>
@@ -250,7 +255,7 @@ export default function WordDetailsPage() {
 
   // Main Render
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-8 px-4 md:py-12">
+    <main className="min-h-screen bg-slate-900 py-8 px-4 md:py-12">
       <div className="max-w-6xl mx-auto">
         {/* Breadcrumb */}
         <nav className="text-sm text-gray-400 mb-6 flex items-center gap-2 flex-wrap bg-slate-800/30 backdrop-blur-sm rounded-lg px-4 py-3 border border-slate-700/30">
@@ -327,17 +332,64 @@ export default function WordDetailsPage() {
           <div className="grid lg:grid-cols-3 gap-8 mt-8">
             {/* Left Column - Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Meaning */}
-              <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700/30 hover:border-yellow-400/30 transition-colors">
-                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                  <span>📖</span> Meaning
+              {/* Pronunciation & Part of Speech */}
+              <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700/30">
+                <h2 className="text-2xl font-bold text-cyan-400 mb-4">
+                  🔊 Pronunciation
                 </h2>
-                <p className="text-lg leading-8 text-gray-200">
-                  {wordData.meaning}
+                <p className="text-xl text-white">
+                  {wordData.pronunciation || "Not Available"}
                 </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <span className="bg-green-600 px-4 py-2 rounded-full text-white">
+                    📝 {wordData.partOfSpeech || "Unknown"}
+                  </span>
+                  <span className="bg-orange-600 px-4 py-2 rounded-full text-white">
+                    🎯 {wordData.difficulty || "Easy"}
+                  </span>
+                </div>
               </div>
 
-              {/* Example */}
+              {/* Synonyms & Antonyms */}
+              <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700/30">
+                <h2 className="text-2xl font-bold text-pink-400 mb-4">
+                  ❤️ Synonyms
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {wordData.synonyms && wordData.synonyms.length > 0 ? (
+                    wordData.synonyms.map((item, index) => (
+                      <span
+                        key={index}
+                        className="bg-pink-600 text-white px-3 py-2 rounded-full text-sm font-medium"
+                      >
+                        {item}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-400">No synonyms available.</p>
+                  )}
+                </div>
+
+                <h2 className="text-2xl font-bold text-red-400 mt-8 mb-4">
+                  ↔️ Antonyms
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {wordData.antonyms && wordData.antonyms.length > 0 ? (
+                    wordData.antonyms.map((item, index) => (
+                      <span
+                        key={index}
+                        className="bg-red-600 text-white px-3 py-2 rounded-full text-sm font-medium"
+                      >
+                        {item}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-400">No antonyms available.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Example Sentence */}
               <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700/30 hover:border-blue-400/30 transition-colors">
                 <h2 className="text-2xl font-bold text-blue-400 mb-4 flex items-center gap-2">
                   <span>💡</span> Example Sentence

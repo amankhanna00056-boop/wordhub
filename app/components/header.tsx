@@ -15,12 +15,19 @@ export default function Header() {
         </p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap justify-center">
         <Link
           href="/daily"
           className="bg-orange-500 hover:bg-orange-600 px-5 py-3 rounded-lg font-semibold transition"
         >
           📅 Daily Word
+        </Link>
+
+        <Link
+          href="/favorites"
+          className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-5 py-3 rounded-lg font-semibold transition"
+        >
+          ⭐ Favorites
         </Link>
 
         <Link
