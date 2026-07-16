@@ -35,11 +35,19 @@ export default function WordDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
   
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
+  // Load favorites from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("favorites");
+    if (saved) {
+      setFavorites(JSON.parse(saved));
+    }
+  }, []);
+
   const loadWord = useCallback(async () => {
-    // Check if params.word exists
     if (!params?.word) {
       setError("No word specified");
       setLoading(false);
@@ -53,22 +61,28 @@ export default function WordDetailsPage() {
 
       const currentWord = decodeURIComponent(params.word as string);
 
-      // 🔥 CHANGE: Fetch ALL words and find manually
-      const snapshot = await getDocs(collection(db, "words"));
+      // Create slug from current word
+      const slug = currentWord
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-");
 
-      const found = snapshot.docs.find((doc) => {
-        const data = doc.data() as Omit<Word, "id">;
-        return (
-          data.word.trim().toLowerCase() ===
-          currentWord.trim().toLowerCase()
-        );
-      });
+      const q = query(
+        collection(db, "words"),
+        where("slug", "==", slug),
+        limit(1)
+      );
 
-      if (!found) {
-        setError(`Word "${currentWord}" not found in dictionary.`);
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        setError(`Word "${currentWord}" not found.`);
         setLoading(false);
         return;
       }
+
+      const found = snapshot.docs[0];
 
       const selectedWord: Word = {
         id: found.id,
@@ -77,7 +91,6 @@ export default function WordDetailsPage() {
 
       setWordData(selectedWord);
 
-      // Load related words from same category
       if (selectedWord.category) {
         const relatedQuery = query(
           collection(db, "words"),
@@ -93,7 +106,7 @@ export default function WordDetailsPage() {
             ...(doc.data() as Omit<Word, "id">),
           }))
           .filter((item) => item.id !== selectedWord.id)
-          .slice(0, 5); // Show max 5 related words
+          .slice(0, 5);
 
         setRelatedWords(related);
       }
@@ -106,13 +119,11 @@ export default function WordDetailsPage() {
   }, [params?.word]);
 
   useEffect(() => {
-    // Only load if params.word exists
     if (params?.word) {
       loadWord();
     }
   }, [params?.word, loadWord]);
 
-  // Cleanup speech synthesis on unmount
   useEffect(() => {
     return () => {
       if (window.speechSynthesis) {
@@ -124,7 +135,6 @@ export default function WordDetailsPage() {
   const speakWord = useCallback(() => {
     if (!wordData) return;
 
-    // Cancel any ongoing speech
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
     }
@@ -154,7 +164,18 @@ export default function WordDetailsPage() {
     if (!wordData) return;
 
     try {
-      await navigator.clipboard.writeText(wordData.word);
+      const text = `Word: ${wordData.word}
+
+Meaning:
+${wordData.meaning}
+
+Example:
+${wordData.example || "No example"}
+
+Category:
+${wordData.category}`;
+
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -167,17 +188,25 @@ export default function WordDetailsPage() {
     if (!wordData) return;
 
     try {
+      const shareText = `Word: ${wordData.word}
+
+Meaning:
+${wordData.meaning}
+
+Example:
+${wordData.example || "No example"}
+
+Category:
+${wordData.category}`;
+
       if (navigator.share && window.innerWidth < 768) {
         await navigator.share({
-          title: `Word: ${wordData.word}`,
-          text: `${wordData.word}: ${wordData.meaning}`,
-          url: window.location.href,
+          title: wordData.word,
+          text: shareText,
         });
       } else {
-        await navigator.clipboard.writeText(
-          `${wordData.word}: ${wordData.meaning}\n\nLearn more at: ${window.location.href}`
-        );
-        alert("✅ Word details copied to clipboard!");
+        await navigator.clipboard.writeText(shareText);
+        alert("✅ Word copied! Share API is not supported on this browser.");
       }
     } catch (err) {
       if (err instanceof Error && err.name !== "AbortError") {
@@ -186,6 +215,22 @@ export default function WordDetailsPage() {
       }
     }
   }, [wordData]);
+
+  const toggleFavorite = useCallback(() => {
+    if (!wordData) return;
+
+    const word = wordData.word;
+    let updated: string[];
+
+    if (favorites.includes(word)) {
+      updated = favorites.filter((w) => w !== word);
+    } else {
+      updated = [...favorites, word];
+    }
+
+    setFavorites(updated);
+    localStorage.setItem("favorites", JSON.stringify(updated));
+  }, [favorites, wordData]);
 
   // Loading State
   if (loading) {
@@ -293,6 +338,18 @@ export default function WordDetailsPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {/* Favorite Button */}
+              <button
+                onClick={toggleFavorite}
+                className={`px-5 py-3 rounded-lg font-bold transition hover:scale-105 ${
+                  favorites.includes(wordData.word)
+                    ? "bg-yellow-400 text-slate-900"
+                    : "bg-slate-700 hover:bg-slate-600"
+                }`}
+              >
+                {favorites.includes(wordData.word) ? "⭐" : "☆"} Favorite
+              </button>
+
               <button
                 onClick={speakWord}
                 disabled={isSpeaking}

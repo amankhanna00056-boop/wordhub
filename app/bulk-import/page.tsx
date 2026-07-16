@@ -15,6 +15,11 @@ interface WordRow {
   meaning: string;
   example: string;
   category: string;
+  partOfSpeech?: string;
+  pronunciation?: string;
+  synonyms?: string;
+  antonyms?: string;
+  difficulty?: string;
 }
 
 export default function BulkImportPage() {
@@ -24,10 +29,18 @@ export default function BulkImportPage() {
   const [imported, setImported] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [failed, setFailed] = useState(0);
-const [dragActive, setDragActive] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const createSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-");
+  };
+
   const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-
     if (!file) return;
 
     Papa.parse<WordRow>(file, {
@@ -57,9 +70,10 @@ const [dragActive, setDragActive] = useState(false);
     try {
       const snapshot = await getDocs(collection(db, "words"));
       const existingWords = new Set(
-        snapshot.docs.map((doc) =>
-          String(doc.data().word).toLowerCase().trim()
-        )
+        snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return data.slug || createSlug(String(data.word));
+        })
       );
 
       let importedCount = 0;
@@ -68,32 +82,33 @@ const [dragActive, setDragActive] = useState(false);
 
       for (let i = 0; i < csvData.length; i++) {
         const item = csvData[i];
-        const word = item.word.toLowerCase().trim();
+        const slug = createSlug(item.word);
 
         try {
-          if (existingWords.has(word)) {
+          if (existingWords.has(slug)) {
             skippedCount++;
             continue;
           }
 
           await addDoc(collection(db, "words"), {
-            
-            word: item.word,
-            meaning: item.meaning,
-            example: item.example,
-            category: item.category,
+            word: item.word.trim(),
+            slug: createSlug(item.word),
+            meaning: item.meaning?.trim() || "",
+            example: item.example?.trim() || "",
+            category: item.category?.trim() || "",
+            partOfSpeech: item.partOfSpeech?.trim() || "",
+            pronunciation: item.pronunciation?.trim() || "",
+            synonyms: item.synonyms
+              ? item.synonyms.split(",").map((s) => s.trim())
+              : [],
+            antonyms: item.antonyms
+              ? item.antonyms.split(",").map((s) => s.trim())
+              : [],
+            difficulty: item.difficulty?.trim() || "Easy",
             createdAt: serverTimestamp(),
           });
-setImported((prev) => {
-  const newCount = prev + 1;
 
-  setProgress(
-    Math.round((newCount / csvData.length) * 100)
-  );
-
-  return newCount;
-});
-          existingWords.add(word);
+          existingWords.add(slug);
           importedCount++;
         } catch (err) {
           failedCount++;
@@ -118,8 +133,6 @@ setImported((prev) => {
       setCsvData([]);
       setProgress(100);
 
-alert(`${csvData.length} words imported successfully!`);
-
     } catch (error) {
       console.error(error);
       alert("❌ Import Failed. Please try again.");
@@ -130,67 +143,55 @@ alert(`${csvData.length} words imported successfully!`);
 
   return (
     <main className="min-h-screen bg-slate-900 text-white flex justify-center items-center p-4">
-
       <div className="bg-slate-800 w-full max-w-[700px] rounded-xl p-8 shadow-xl">
-
         <h1 className="text-4xl font-bold text-center text-yellow-400">
           📥 Bulk Import Words
         </h1>
-
         <p className="text-center text-gray-400 mt-2">
           Upload CSV file and import all words instantly.
         </p>
 
         <div
-  onDragOver={(e) => {
-    e.preventDefault();
-    setDragActive(true);
-  }}
-  onDragLeave={() => setDragActive(false)}
-  onDrop={(e) => {
-    e.preventDefault();
-    setDragActive(false);
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
 
-    const file = e.dataTransfer.files[0];
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
 
-    if (!file) return;
-
-    Papa.parse<WordRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-
-      complete: (results) => {
-        setCsvData(results.data);
-      },
-
-      error: () => {
-        alert("CSV Read Failed");
-      },
-    });
-  }}
-  className={`mt-8 border-2 border-dashed rounded-xl p-10 text-center transition ${
-    dragActive
-      ? "border-green-400 bg-slate-700"
-      : "border-slate-500 bg-slate-800"
-  }`}
->
-
-  <p className="text-xl font-semibold">
-    📂 Drag & Drop CSV File Here
-  </p>
-
-  <p className="text-gray-400 mt-2">
-    or
-  </p>
-
-  <input
-    type="file"
-    accept=".csv"
-    onChange={handleFile}
-    className="mt-4"
-  />
-
-</div>
+            Papa.parse<WordRow>(file, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                setCsvData(results.data);
+              },
+              error: () => {
+                alert("CSV Read Failed");
+              },
+            });
+          }}
+          className={`mt-8 border-2 border-dashed rounded-xl p-10 text-center transition ${
+            dragActive
+              ? "border-green-400 bg-slate-700"
+              : "border-slate-500 bg-slate-800"
+          }`}
+        >
+          <p className="text-xl font-semibold">
+            📂 Drag & Drop CSV File Here
+          </p>
+          <p className="text-gray-400 mt-2">or</p>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFile}
+            className="mt-4 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:text-slate-900 file:font-semibold hover:file:bg-yellow-500"
+          />
+        </div>
 
         <p className="mt-5">
           Selected Words:
@@ -201,7 +202,6 @@ alert(`${csvData.length} words imported successfully!`);
 
         {loading && (
           <div className="mt-6 bg-slate-700 rounded-xl p-4">
-
             <div className="flex justify-between mb-2">
               <span>Import Progress</span>
               <span>{progress}%</span>
@@ -215,7 +215,6 @@ alert(`${csvData.length} words imported successfully!`);
             </div>
 
             <div className="grid grid-cols-3 gap-3 mt-4 text-center">
-
               <div className="bg-slate-800 rounded-lg p-3">
                 <p className="text-green-400 font-bold text-xl">
                   {imported}
@@ -236,64 +235,42 @@ alert(`${csvData.length} words imported successfully!`);
                 </p>
                 <p className="text-sm text-gray-400">Failed</p>
               </div>
-
             </div>
-
           </div>
         )}
 
         {csvData.length > 0 && (
           <div className="mt-8">
-
             <h2 className="text-2xl font-bold mb-4 text-yellow-400">
               CSV Preview
             </h2>
-<p className="text-sm text-gray-400 mb-3">
-  Showing first <b>10</b> rows of <b>{csvData.length}</b> total rows.
-</p>
+            <p className="text-sm text-gray-400 mb-3">
+              Showing first <b>10</b> rows of <b>{csvData.length}</b> total rows.
+            </p>
+
             <div className="overflow-y-auto max-h-80 border border-slate-700 rounded-lg">
-
               <table className="w-full">
-
                 <thead className="bg-slate-700 sticky top-0">
-
                   <tr>
                     <th className="p-3 text-left">Word</th>
                     <th className="p-3 text-left">Meaning</th>
                     <th className="p-3 text-left">Category</th>
                   </tr>
-
                 </thead>
 
                 <tbody>
-
-               {csvData.slice(0, 10).map((item, index) => (
-
+                  {csvData.slice(0, 10).map((item, index) => (
                     <tr
                       key={index}
                       className="border-b border-slate-700 hover:bg-slate-700"
                     >
-
-                      <td className="p-3">
-                        {item.word}
-                      </td>
-
-                      <td className="p-3">
-                        {item.meaning}
-                      </td>
-
-                      <td className="p-3">
-                        {item.category}
-                      </td>
-
+                      <td className="p-3">{item.word}</td>
+                      <td className="p-3">{item.meaning}</td>
+                      <td className="p-3">{item.category}</td>
                     </tr>
-
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
 
             <button
@@ -305,12 +282,9 @@ alert(`${csvData.length} words imported successfully!`);
                 ? "⏳ Importing..."
                 : `🚀 Import ${csvData.length} Words`}
             </button>
-
           </div>
         )}
-
       </div>
-
     </main>
   );
 }

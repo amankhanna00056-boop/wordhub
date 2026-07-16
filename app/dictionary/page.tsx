@@ -28,6 +28,10 @@ export default function DictionaryPage() {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [startsWith, setStartsWith] = useState("");
+  const [endsWith, setEndsWith] = useState("");
+  const [contains, setContains] = useState("");
+  const [lengthFilter, setLengthFilter] = useState("");
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -44,12 +48,11 @@ export default function DictionaryPage() {
 
   // Filter words when search, favorites filter changes
   useEffect(() => {
-    const keyword = search.toLowerCase();
     let filtered = words.filter((item) => {
       return (
-        item.word.toLowerCase().includes(keyword) ||
-        item.meaning.toLowerCase().includes(keyword) ||
-        item.category.toLowerCase().includes(keyword)
+        item.word.toLowerCase().includes(search.toLowerCase()) ||
+        item.meaning.toLowerCase().includes(search.toLowerCase()) ||
+        item.category.toLowerCase().includes(search.toLowerCase())
       );
     });
 
@@ -58,8 +61,45 @@ export default function DictionaryPage() {
       filtered = filtered.filter((item) => favorites.includes(item.word));
     }
 
+    // Starts With Filter
+    if (startsWith.trim()) {
+      filtered = filtered.filter((item) =>
+        item.word.toLowerCase().startsWith(startsWith.toLowerCase())
+      );
+    }
+
+    // Ends With Filter
+    if (endsWith.trim()) {
+      filtered = filtered.filter((item) =>
+        item.word.toLowerCase().endsWith(endsWith.toLowerCase())
+      );
+    }
+
+    // Contains Filter
+    if (contains.trim()) {
+      filtered = filtered.filter((item) =>
+        item.word.toLowerCase().includes(contains.toLowerCase())
+      );
+    }
+
+    // Exact Length Filter
+    if (lengthFilter) {
+      filtered = filtered.filter(
+        (item) => item.word.length === Number(lengthFilter)
+      );
+    }
+
     setFilteredWords(filtered);
-  }, [search, words, favorites, showFavoritesOnly]);
+  }, [
+    search,
+    words,
+    favorites,
+    showFavoritesOnly,
+    startsWith,
+    endsWith,
+    contains,
+    lengthFilter,
+  ]);
 
   const loadWords = async () => {
     try {
@@ -77,21 +117,21 @@ export default function DictionaryPage() {
   };
 
   const toggleFavorite = (word: string) => {
-  console.log("Clicked:", word);
+    console.log("Clicked:", word);
 
-  let updated: string[];
+    let updated: string[];
 
-  if (favorites.includes(word)) {
-    updated = favorites.filter((w) => w !== word);
-  } else {
-    updated = [...favorites, word];
-  }
+    if (favorites.includes(word)) {
+      updated = favorites.filter((w) => w !== word);
+    } else {
+      updated = [...favorites, word];
+    }
 
-  console.log(updated);
+    console.log(updated);
 
-  setFavorites(updated);
-  localStorage.setItem("favorites", JSON.stringify(updated));
-};
+    setFavorites(updated);
+    localStorage.setItem("favorites", JSON.stringify(updated));
+  };
 
   return (
     <main className="min-h-screen bg-slate-900 text-white py-10 px-5">
@@ -121,6 +161,38 @@ export default function DictionaryPage() {
           }}
           className="w-full mt-8 p-5 rounded-lg bg-slate-800 border border-slate-700 text-lg font-medium placeholder:text-gray-500 focus:text-white"
         />
+
+        {/* Advanced Filters */}
+        <div className="grid md:grid-cols-4 gap-4 mt-6">
+          <input
+            placeholder="Starts With"
+            value={startsWith}
+            onChange={(e) => setStartsWith(e.target.value)}
+            className="p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder:text-gray-500"
+          />
+
+          <input
+            placeholder="Ends With"
+            value={endsWith}
+            onChange={(e) => setEndsWith(e.target.value)}
+            className="p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder:text-gray-500"
+          />
+
+          <input
+            placeholder="Contains"
+            value={contains}
+            onChange={(e) => setContains(e.target.value)}
+            className="p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder:text-gray-500"
+          />
+
+          <input
+            type="number"
+            placeholder="Length"
+            value={lengthFilter}
+            onChange={(e) => setLengthFilter(e.target.value)}
+            className="p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder:text-gray-500"
+          />
+        </div>
 
         {/* Stats & Filters */}
         <div className="mt-6 flex flex-wrap justify-between items-center gap-4">

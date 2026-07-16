@@ -14,7 +14,9 @@ export default function Navbar() {
         <Link href="/daily" className="hover:text-yellow-400">
           Daily Puzzle
         </Link>
-
+<Link href="/unscrambler" className="hover:text-yellow-400">
+  Unscrambler
+</Link>
         <Link href="/about" className="hover:text-yellow-400">
           About
         </Link>
