@@ -23,6 +23,8 @@ interface Word {
   synonyms?: string[];
   antonyms?: string[];
   difficulty?: string;
+  origin?: string;
+  phonetic?: string;
 }
 
 export default function WordDetailsPage() {
@@ -36,6 +38,7 @@ export default function WordDetailsPage() {
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [apiData, setApiData] = useState<any>(null);
   
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -59,37 +62,57 @@ export default function WordDetailsPage() {
       setError(null);
       setRelatedWords([]);
 
-      const currentWord = decodeURIComponent(params.word as string);
+      const currentWord =
+  decodeURIComponent(params.word as string)
+    .trim()
+    .toLowerCase();
 
       // Create slug from current word
-      const slug = currentWord
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-");
+      // Search manually (case-insensitive)
+const snapshot = await getDocs(collection(db, "words"));
+console.log("Total docs:", snapshot.size);
 
-      const q = query(
-        collection(db, "words"),
-        where("slug", "==", slug),
-        limit(1)
-      );
+snapshot.docs.forEach((doc) => {
+  console.log(doc.data());
+});
 
-      const snapshot = await getDocs(q);
+const found = snapshot.docs.find((doc) => {
+  const data = doc.data();
 
-      if (snapshot.empty) {
-        setError(`Word "${currentWord}" not found.`);
-        setLoading(false);
-        return;
-      }
+  return (
+    String(data.word).trim().toLowerCase() ===
+    currentWord.trim().toLowerCase()
+  );
+});
 
-      const found = snapshot.docs[0];
-
+if (!found) {
+  setError(`Word "${currentWord}" not found.`);
+  setLoading(false);
+  return;
+}
       const selectedWord: Word = {
         id: found.id,
         ...(found.data() as Omit<Word, "id">),
       };
 
       setWordData(selectedWord);
+
+      // Fetch from Dictionary API
+      try {
+        const response = await fetch(
+          `https://api.dictionaryapi.dev/api/v2/entries/en/${selectedWord.word}`
+        );
+
+        if (response.ok) {
+          const api = await response.json();
+          setApiData(api[0]);
+        } else {
+          setApiData(null);
+        }
+      } catch (err) {
+        console.error("Dictionary API Error:", err);
+        setApiData(null);
+      }
 
       if (selectedWord.category) {
         const relatedQuery = query(
@@ -167,7 +190,7 @@ export default function WordDetailsPage() {
       const text = `Word: ${wordData.word}
 
 Meaning:
-${wordData.meaning}
+${apiData?.meanings?.[0]?.definitions?.[0]?.definition || wordData.meaning}
 
 Example:
 ${wordData.example || "No example"}
@@ -182,7 +205,7 @@ ${wordData.category}`;
       console.error("Failed to copy:", err);
       alert("Failed to copy word. Please try again.");
     }
-  }, [wordData]);
+  }, [wordData, apiData]);
 
   const shareWord = useCallback(async () => {
     if (!wordData) return;
@@ -394,8 +417,8 @@ ${wordData.category}`;
                 <h2 className="text-2xl font-bold text-cyan-400 mb-4">
                   🔊 Pronunciation
                 </h2>
-                <p className="text-xl text-white">
-                  {wordData.pronunciation || "Not Available"}
+                <p className="text-lg text-gray-300">
+                  {apiData?.phonetic || wordData.pronunciation || "No pronunciation available"}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <span className="bg-green-600 px-4 py-2 rounded-full text-white">
@@ -451,14 +474,51 @@ ${wordData.category}`;
                 <h2 className="text-2xl font-bold text-blue-400 mb-4 flex items-center gap-2">
                   <span>💡</span> Example Sentence
                 </h2>
-                {wordData.example ? (
-                  <p className="text-lg leading-8 text-gray-200 italic border-l-4 border-blue-500/50 pl-4">
-                    &quot;{wordData.example}&quot;
-                  </p>
-                ) : (
-                  <p className="text-gray-500 italic">No example available.</p>
-                )}
+                <p className="text-lg leading-8 text-gray-200 italic border-l-4 border-blue-500/50 pl-4">
+                  {apiData?.meanings?.[0]?.definitions?.[0]?.example || wordData.example || "No example available."}
+                </p>
               </div>
+
+              {/* API Synonyms & Antonyms - Added below Meaning section */}
+              {apiData?.meanings?.[0]?.synonyms?.length > 0 && (
+                <div className="mt-6 bg-slate-900/50 rounded-xl p-6 border border-slate-700/30">
+                  <h3 className="text-xl font-bold text-green-400 mb-3">
+                    🔗 Synonyms (API)
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {apiData.meanings[0].synonyms.slice(0, 10).map(
+                      (item: string) => (
+                        <span
+                          key={item}
+                          className="px-3 py-2 rounded-lg bg-green-700 hover:bg-green-600 transition"
+                        >
+                          {item}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {apiData?.meanings?.[0]?.antonyms?.length > 0 && (
+                <div className="mt-6 bg-slate-900/50 rounded-xl p-6 border border-slate-700/30">
+                  <h3 className="text-xl font-bold text-red-400 mb-3">
+                    🚫 Antonyms (API)
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {apiData.meanings[0].antonyms.slice(0, 10).map(
+                      (item: string) => (
+                        <span
+                          key={item}
+                          className="px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 transition"
+                        >
+                          {item}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Sidebar */}
@@ -472,6 +532,20 @@ ${wordData.category}`;
                   <span className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2 rounded-full font-semibold shadow-lg shadow-indigo-600/20">
                     {wordData.category}
                   </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <p>
+                    <span className="font-semibold">Category:</span>
+                    {wordData.category}
+                  </p>
+                  {apiData?.meanings?.[0]?.partOfSpeech && (
+                    <p>
+                      <span className="font-semibold text-yellow-400">
+                        Part of Speech:
+                      </span>{" "}
+                      {apiData.meanings[0].partOfSpeech}
+                    </p>
+                  )}
                 </div>
               </div>
 
