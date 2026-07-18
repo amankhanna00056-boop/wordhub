@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import { db } from "../firebase";
+
 import {
   collection,
-  addDoc,
+  doc,
+  writeBatch,
   serverTimestamp,
   getDocs,
 } from "firebase/firestore";
@@ -68,6 +70,7 @@ export default function BulkImportPage() {
     setFailed(0);
 
     try {
+      // 📌 Existing words check
       const snapshot = await getDocs(collection(db, "words"));
       const existingWords = new Set(
         snapshot.docs.map((doc) => {
@@ -79,23 +82,32 @@ export default function BulkImportPage() {
       let importedCount = 0;
       let skippedCount = 0;
       let failedCount = 0;
+      
+      // 📌 Batch initialize
+      let batch = writeBatch(db);
+      let batchCount = 0;
 
+      // 📌 Main loop - EACH WORD PROCESS
       for (let i = 0; i < csvData.length; i++) {
         const item = csvData[i];
         const slug = createSlug(item.word);
 
         try {
+          // Check if word already exists
           if (existingWords.has(slug)) {
             skippedCount++;
             continue;
           }
 
-          await addDoc(collection(db, "words"), {
+          // ✅ FIX: Remove the wrong if(batchCount > 0) from here
+          const newDocRef = doc(collection(db, "words"));
+
+          batch.set(newDocRef, {
             word: item.word.trim(),
             slug: createSlug(item.word),
             meaning: item.meaning?.trim() || "",
             example: item.example?.trim() || "",
-            category: item.category?.trim() || "",
+            category: item.category?.trim() || "General",
             partOfSpeech: item.partOfSpeech?.trim() || "",
             pronunciation: item.pronunciation?.trim() || "",
             synonyms: item.synonyms
@@ -105,11 +117,23 @@ export default function BulkImportPage() {
               ? item.antonyms.split(",").map((s) => s.trim())
               : [],
             difficulty: item.difficulty?.trim() || "Easy",
+            startsWith: item.word.trim().charAt(0).toLowerCase(),
+            endsWith: item.word.trim().slice(-1).toLowerCase(),
+            length: item.word.trim().length,
             createdAt: serverTimestamp(),
           });
 
+          batchCount++;
           existingWords.add(slug);
           importedCount++;
+
+          // ✅ CORRECT: Commit batch when it reaches 500
+          if (batchCount === 500) {
+            await batch.commit();
+            batch = writeBatch(db);  // New batch
+            batchCount = 0;
+          }
+
         } catch (err) {
           failedCount++;
           console.error("Failed to import word:", item.word, err);
@@ -123,6 +147,12 @@ export default function BulkImportPage() {
         setFailed(failedCount);
       }
 
+      // ✅ CRITICAL FIX: Commit remaining words after loop
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      // Success message
       alert(
         `✅ Import Complete!\n\n` +
         `📥 Imported: ${importedCount}\n` +
