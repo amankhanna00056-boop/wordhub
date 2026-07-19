@@ -6,6 +6,12 @@ import { db } from "../firebase";
 import {
   collection,
   getDocs,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  DocumentSnapshot,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { StarIcon as SolidStar } from "@heroicons/react/24/solid";
 import { StarIcon as OutlineStar } from "@heroicons/react/24/outline";
@@ -32,6 +38,13 @@ export default function DictionaryPage() {
   const [endsWith, setEndsWith] = useState("");
   const [contains, setContains] = useState("");
   const [lengthFilter, setLengthFilter] = useState("");
+  
+  // Pagination
+  const PAGE_SIZE = 50;
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [firstDoc, setFirstDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -101,19 +114,72 @@ export default function DictionaryPage() {
     lengthFilter,
   ]);
 
+  // ✅ FIX 1: loadWords function - duplicate code removed
   const loadWords = async () => {
     try {
-      const snapshot = await getDocs(collection(db, "words"));
+      setLoading(true);
+
+      const q = query(
+        collection(db, "words"),
+        orderBy("word"),
+        limit(PAGE_SIZE)
+      );
+
+      const snapshot = await getDocs(q);
+
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<Word, "id">),
       }));
+
       setWords(data);
       setFilteredWords(data);
-    } catch (error) {
-      console.error(error);
+
+      if (snapshot.docs.length > 0) {
+        setFirstDoc(snapshot.docs[0]);
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+      }
+    } catch (err) {
+      console.error(err);
     }
+
     setLoading(false);
+  };
+
+  // ✅ FIX 2: nextPage function - missing closing brace fixed
+  const nextPage = async () => {
+    if (!lastDoc) return;
+
+    setLoadingMore(true);
+
+    try {
+      const q = query(
+        collection(db, "words"),
+        orderBy("word"),
+        startAfter(lastDoc),
+        limit(PAGE_SIZE)
+      );
+
+      const snapshot = await getDocs(q);
+
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Word, "id">),
+      }));
+
+      setWords(data);
+      setFilteredWords(data);
+
+      if (snapshot.docs.length > 0) {
+        setFirstDoc(snapshot.docs[0]);
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+        setPage((p) => p + 1);
+      }
+    } catch (err) {
+      console.error("Error loading next page:", err);
+    }
+
+    setLoadingMore(false);
   };
 
   const toggleFavorite = (word: string) => {
@@ -303,6 +369,17 @@ export default function DictionaryPage() {
             ))}
           </div>
         )}
+        
+        {/* Next Page Button */}
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={nextPage}
+            disabled={loadingMore}
+            className="bg-green-500 hover:bg-green-600 px-8 py-3 rounded-lg font-bold disabled:bg-gray-500 disabled:cursor-not-allowed transition"
+          >
+            {loadingMore ? "Loading..." : "Next Page →"}
+          </button>
+        </div>
       </div>
     </main>
   );
