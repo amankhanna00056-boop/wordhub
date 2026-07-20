@@ -1,169 +1,490 @@
 "use client";
 
-import { useState } from "react";
-import { auth } from "../firebase";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { db, auth } from "../firebase";
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged,
+  User 
+} from "firebase/auth";
+import { collection, getDocs } from "firebase/firestore";
+import {
+  BookOpenIcon,
+  SparklesIcon,
+  AcademicCapIcon,
+  PencilSquareIcon,
+} from "@heroicons/react/24/outline";
 
-export default function LoginPage() {
+interface WordStats {
+  total: number;
+  categories: number;
+}
+
+export default function AboutPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [stats, setStats] = useState<WordStats>({ total: 0, categories: 0 });
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
-  // ✅ Email/Password Login
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  // ✅ FIX: Remove auto-redirect - only track user state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      // ❌ REMOVED: router.push("/dictionary") - No auto-redirect
+    });
+    return () => unsubscribe();
+  }, []); // ✅ Removed router from dependencies
 
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "words"));
+        const words = snapshot.docs.map((doc) => doc.data());
+        
+        const categories = new Set(
+          words.map((w) => w.category || "General")
+        );
 
-      // Redirect to WordHub Dashboard
-      router.push("/dashboard");
-    } catch (err: any) {
-      console.error("Email Login Error:", err);
-      setError(getErrorMessage(err.code));
-    } finally {
+        setStats({
+          total: snapshot.size,
+          categories: categories.size,
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+        setStats({ total: 12500, categories: 48 });
+      }
       setLoading(false);
-    }
-  };
+    };
 
-  // ✅ Google Login
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
+    fetchStats();
+  }, []);
 
+  // ✅ Sign in with Google
+  const signInWithGoogle = async () => {
+    setAuthLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      console.log("✅ Signed in:", user.displayName);
+      
+      // ✅ Only redirect AFTER successful sign-in
+      router.push("/dictionary");
+    } catch (error: any) {
+      console.error("❌ Sign in error:", error);
+      if (error.code === "auth/popup-closed-by-user") {
+        alert("Sign-in cancelled. Please try again.");
+      } else if (error.code === "auth/popup-blocked") {
+        alert("Popup blocked! Please allow popups for this site.");
+      } else {
+        alert("Failed to sign in. Please try again.");
+      }
+    }
+    setAuthLoading(false);
+  };
 
-      // Redirect to WordHub Dashboard
-      router.push("/dashboard");
-    } catch (err: any) {
-      console.error("Google Login Error:", err);
-      setError(getErrorMessage(err.code));
-    } finally {
-      setLoading(false);
+  // ✅ Navigation Functions - No auto redirect
+  const goToDictionary = () => {
+    if (user) {
+      // ✅ User already signed in - go directly
+      router.push("/dictionary");
+    } else {
+      // ✅ User not signed in - show sign-in popup
+      signInWithGoogle();
     }
   };
 
-  // ✅ Error Message Helper
-  const getErrorMessage = (code: string): string => {
-    const errors: Record<string, string> = {
-      "auth/invalid-email": "Invalid email address. Please try again.",
-      "auth/user-not-found": "No account found with this email.",
-      "auth/wrong-password": "Incorrect password. Please try again.",
-      "auth/too-many-requests": "Too many failed attempts. Please try later.",
-      "auth/popup-closed-by-user": "Google sign-in was cancelled. Please try again.",
-      "auth/network-request-failed": "Network error. Check your connection.",
-    };
-    return errors[code] || "Something went wrong. Please try again.";
-  };
+  // Features Data (same as before)
+  const features = [
+    {
+      icon: <BookOpenIcon className="w-8 h-8" />,
+      title: "📖 Dictionary",
+      items: [
+        "Word Definitions",
+        "Pronunciation Guide",
+        "Synonyms & Antonyms",
+        "Example Sentences",
+      ],
+      color: "bg-blue-500/20 border-blue-500/30",
+    },
+    {
+      icon: <SparklesIcon className="w-8 h-8" />,
+      title: "🎮 Word Games",
+      items: [
+        "Daily Word Scramble",
+        "Unscrambler Tool",
+        "Word Finder",
+        "Anagram Solver",
+      ],
+      color: "bg-purple-500/20 border-purple-500/30",
+    },
+    {
+      icon: <PencilSquareIcon className="w-8 h-8" />,
+      title: "✍ Writing Tools",
+      items: [
+        "Rhyming Dictionary",
+        "Word Counter",
+        "Letter Counter",
+        "Text Analyzer",
+      ],
+      color: "bg-green-500/20 border-green-500/30",
+    },
+    {
+      icon: <AcademicCapIcon className="w-8 h-8" />,
+      title: "🎓 Learning",
+      items: [
+        "Vocabulary Builder",
+        "Flashcards System",
+        "Daily Quiz",
+        "Word of the Day",
+      ],
+      color: "bg-yellow-500/20 border-yellow-500/30",
+    },
+  ];
+
+  const reasons = [
+    { icon: "⚡", title: "Fast Search", desc: "Instant results" },
+    { icon: "📚", title: "100K+ Words", desc: "Huge database" },
+    { icon: "🔍", title: "Powerful Filters", desc: "Advanced search" },
+    { icon: "🌙", title: "Dark Mode", desc: "Easy on eyes" },
+    { icon: "📱", title: "Mobile Friendly", desc: "Responsive design" },
+    { icon: "⭐", title: "Save Favorites", desc: "Bookmark words" },
+    { icon: "🎯", title: "Free to Use", desc: "No hidden charges" },
+    { icon: "🔄", title: "Sync Anywhere", desc: "Across devices" },
+  ];
+
+  const roadmap = [
+    { status: "✅", title: "Dictionary", desc: "Complete word lookup" },
+    { status: "✅", title: "Word Finder", desc: "Search & filter" },
+    { status: "✅", title: "Unscrambler", desc: "Word games" },
+    { status: "🔄", title: "AI Assistant", desc: "Smart suggestions" },
+    { status: "🔄", title: "Grammar Checker", desc: "Writing help" },
+    { status: "🔄", title: "Mobile App", desc: "iOS & Android" },
+    { status: "🔄", title: "Browser Extension", desc: "Chrome & Firefox" },
+  ];
+
+  const users = [
+    { icon: "👨‍🎓", label: "Students" },
+    { icon: "📝", label: "Writers" },
+    { icon: "👨‍🏫", label: "Teachers" },
+    { icon: "🎮", label: "Gamers" },
+    { icon: "📖", label: "English Learners" },
+    { icon: "💼", label: "Professionals" },
+  ];
+
+  const techStack = [
+    { name: "Next.js", icon: "▲", color: "text-white" },
+    { name: "Firebase", icon: "🔥", color: "text-yellow-400" },
+    { name: "TypeScript", icon: "TS", color: "text-blue-400" },
+    { name: "Tailwind CSS", icon: "🎨", color: "text-cyan-400" },
+    { name: "Dictionary API", icon: "📚", color: "text-green-400" },
+  ];
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-slate-700">
+    <main className="min-h-screen bg-slate-900 text-white">
+      {/* ===== HERO SECTION ===== */}
+      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-20 px-5 text-center overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-72 h-72 bg-yellow-400 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl"></div>
+        </div>
         
-        {/* WordHub Branding */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold text-yellow-400 tracking-tight">
-            Word<span className="text-white">Hub</span>
+        <div className="relative max-w-5xl mx-auto">
+          <div className="inline-block px-6 py-2 bg-yellow-400/20 border border-yellow-400/30 rounded-full text-yellow-400 font-semibold text-sm mb-6">
+            📚 Welcome to WordHub
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-extrabold mb-6">
+            Learn Smarter.
+            <span className="text-yellow-400 block mt-2">Play Better.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-400 block mt-2">
+              Build Your Vocabulary.
+            </span>
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Sign in to your account</p>
+          
+          <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+            WordHub is an all-in-one English dictionary, word finder, and 
+            vocabulary learning platform designed for students, writers, 
+            teachers, gamers, and English learners.
+          </p>
+          
+          {/* Buttons with Sign in with Google + Cursor Pointer */}
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <button
+              onClick={goToDictionary}
+              disabled={authLoading}
+              className="px-8 py-4 bg-yellow-400 text-slate-900 rounded-xl font-bold text-lg hover:bg-yellow-300 transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {authLoading ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⟳</span>
+                  Signing in...
+                </>
+              ) : user ? (
+                "🚀 Go to Dictionary"
+              ) : (
+                "🚀 Sign in with Google"
+              )}
+            </button>
+            
+            <button
+              onClick={goToDictionary}
+              className="px-8 py-4 bg-slate-700 border border-slate-600 rounded-xl font-bold text-lg hover:bg-slate-600 transition cursor-pointer"
+            >
+              📖 Try Dictionary
+            </button>
+          </div>
+
+          {/* Show user info if logged in */}
+          {user && (
+            <div className="mt-6 text-sm text-gray-400">
+              👋 Welcome, <span className="text-yellow-400 font-bold">{user.displayName}</span>!
+            </div>
+          )}
         </div>
+      </section>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
-            {error}
+      {/* ===== STATISTICS ===== */}
+      <section className="bg-slate-800/50 py-16 px-5 border-y border-slate-700">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="space-y-2">
+            <div className="text-4xl md:text-5xl font-extrabold text-yellow-400">
+              {loading ? "..." : stats.total.toLocaleString()}+
+            </div>
+            <div className="text-gray-400 font-medium">Words Available</div>
           </div>
-        )}
-
-        {/* Email/Password Form */}
-        <form onSubmit={handleEmailLogin}>
-          <input
-            type="email"
-            placeholder="Email Address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg bg-slate-700/70 text-white placeholder:text-slate-400 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
-            required
-            disabled={loading}
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full mt-4 p-3 rounded-lg bg-slate-700/70 text-white placeholder:text-slate-400 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
-            required
-            disabled={loading}
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-6 bg-gradient-to-r from-yellow-500 to-yellow-400 text-slate-900 py-3 rounded-lg font-bold hover:from-yellow-400 hover:to-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-yellow-500/20"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
-
-        {/* Divider */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-600"></div>
+          
+          <div className="space-y-2">
+            <div className="text-4xl md:text-5xl font-extrabold text-green-400">
+              {loading ? "..." : stats.categories}+
+            </div>
+            <div className="text-gray-400 font-medium">Categories</div>
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-slate-800 text-slate-400">or continue with</span>
+          
+          <div className="space-y-2">
+            <div className="text-4xl md:text-5xl font-extrabold text-blue-400">100%</div>
+            <div className="text-gray-400 font-medium">Free to Use</div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="text-4xl md:text-5xl font-extrabold text-purple-400">24/7</div>
+            <div className="text-gray-400 font-medium">Always Available</div>
           </div>
         </div>
+      </section>
 
-        {/* Google Login */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-3 transition-all border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          {loading ? "Please wait..." : "Sign in with Google"}
-        </button>
-
-        {/* Footer */}
-        <p className="text-center text-slate-500 text-xs mt-6">
-          By continuing, you agree to WordHub's{" "}
-          <a href="#" className="text-yellow-400 hover:underline">
-            Terms
-          </a>{" "}
-          &amp;{" "}
-          <a href="#" className="text-yellow-400 hover:underline">
-            Privacy Policy
-          </a>
+      {/* ===== MISSION SECTION ===== */}
+      <section className="py-20 px-5 max-w-5xl mx-auto text-center">
+        <div className="inline-block px-6 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 font-semibold text-sm mb-6">
+          🎯 Our Mission
+        </div>
+        <h2 className="text-4xl md:text-5xl font-bold mb-6">
+          Making Learning <span className="text-yellow-400">Simple</span>, 
+          <span className="text-green-400"> Fast</span> & 
+          <span className="text-blue-400"> Enjoyable</span>
+        </h2>
+        <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+          We believe everyone should have access to a free, powerful, and modern 
+          dictionary with interactive learning tools that make vocabulary building 
+          fun and effective.
         </p>
-      </div>
+      </section>
+
+      {/* ===== FEATURES ===== */}
+      <section className="py-20 px-5 bg-slate-800/30">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-block px-6 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full text-purple-400 font-semibold text-sm mb-4">
+              ✨ What You Can Do
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold">
+              All-in-One <span className="text-yellow-400">Word Platform</span>
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, idx) => (
+              <div
+                key={idx}
+                className={`p-6 rounded-2xl border ${feature.color} backdrop-blur-sm hover:scale-105 transition duration-300`}
+              >
+                <div className="text-yellow-400 mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-bold mb-4">{feature.title}</h3>
+                <ul className="space-y-2 text-gray-300">
+                  {feature.items.map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm">
+                      <span className="text-green-400">✓</span> {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== WHY CHOOSE ===== */}
+      <section className="py-20 px-5 max-w-6xl mx-auto">
+        <div className="text-center mb-12">
+          <div className="inline-block px-6 py-2 bg-green-500/20 border border-green-500/30 rounded-full text-green-400 font-semibold text-sm mb-4">
+            ⭐ Why Choose Us
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold">
+            Why <span className="text-yellow-400">WordHub</span>?
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {reasons.map((reason, idx) => (
+            <div
+              key={idx}
+              className="bg-slate-800/50 p-6 rounded-xl text-center hover:bg-slate-700/50 transition border border-slate-700/50"
+            >
+              <div className="text-3xl mb-2">{reason.icon}</div>
+              <h4 className="font-bold text-white">{reason.title}</h4>
+              <p className="text-sm text-gray-400">{reason.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== ROADMAP ===== */}
+      <section className="py-20 px-5 bg-slate-800/30">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-block px-6 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 font-semibold text-sm mb-4">
+              🚀 Roadmap
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold">
+              Our <span className="text-yellow-400">Journey</span> Ahead
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            {roadmap.map((item, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-4 bg-slate-800 p-4 rounded-xl hover:bg-slate-700 transition"
+              >
+                <span className="text-2xl">{item.status}</span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-white">{item.title}</h4>
+                  <p className="text-sm text-gray-400">{item.desc}</p>
+                </div>
+                <span className={`text-sm font-semibold px-3 py-1 rounded-full ${
+                  item.status === "✅" 
+                    ? "bg-green-500/20 text-green-400" 
+                    : "bg-yellow-500/20 text-yellow-400"
+                }`}>
+                  {item.status === "✅" ? "Live" : "Coming Soon"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== VISION ===== */}
+      <section className="py-20 px-5 max-w-4xl mx-auto text-center">
+        <div className="inline-block px-6 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 font-semibold text-sm mb-6">
+          🌍 Our Vision
+        </div>
+        <h2 className="text-4xl md:text-5xl font-bold mb-6">
+          A <span className="text-yellow-400">Global</span> Word-Learning 
+          <span className="text-green-400"> Ecosystem</span>
+        </h2>
+        <p className="text-xl text-gray-300 leading-relaxed">
+          Our vision is to become one of the world's most useful word-learning 
+          platforms by combining dictionaries, vocabulary tools, AI, and 
+          educational games in one place.
+        </p>
+      </section>
+
+      {/* ===== WHO USES ===== */}
+      <section className="py-20 px-5 bg-slate-800/30">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-block px-6 py-2 bg-pink-500/20 border border-pink-500/30 rounded-full text-pink-400 font-semibold text-sm mb-4">
+            👥 Who Uses WordHub
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-12">
+            Built for <span className="text-yellow-400">Everyone</span>
+          </h2>
+
+          <div className="flex flex-wrap justify-center gap-4">
+            {users.map((user, idx) => (
+              <div
+                key={idx}
+                className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 hover:border-yellow-400/50 transition"
+              >
+                <span className="text-2xl mr-2">{user.icon}</span>
+                <span className="font-medium text-white">{user.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== TECH STACK ===== */}
+      <section className="py-20 px-5 max-w-4xl mx-auto text-center">
+        <div className="inline-block px-6 py-2 bg-cyan-500/20 border border-cyan-500/30 rounded-full text-cyan-400 font-semibold text-sm mb-6">
+          ⚙️ Technologies
+        </div>
+        <h2 className="text-4xl md:text-5xl font-bold mb-12">
+          Built with <span className="text-yellow-400">Modern</span> Tech
+        </h2>
+
+        <div className="flex flex-wrap justify-center gap-4">
+          {techStack.map((tech, idx) => (
+            <div
+              key={idx}
+              className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 flex items-center gap-3"
+            >
+              <span className={`text-2xl ${tech.color}`}>{tech.icon}</span>
+              <span className="font-semibold text-white">{tech.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== CONTACT ===== */}
+      <section className="py-20 px-5 bg-slate-800/30 border-t border-slate-700">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="inline-block px-6 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 font-semibold text-sm mb-6">
+            📬 Contact Us
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            Need <span className="text-yellow-400">Help</span>?
+          </h2>
+          
+          <div className="space-y-4 text-gray-300">
+            <p className="flex items-center justify-center gap-3">
+              <span className="text-xl">📧</span> support@wordhub.com
+            </p>
+            <p className="flex items-center justify-center gap-3">
+              <span className="text-xl">💬</span> feedback@wordhub.com
+            </p>
+          </div>
+
+          <div className="mt-8 p-6 bg-slate-800 rounded-xl border border-slate-700">
+            <p className="text-gray-400 text-sm">
+              💡 Have suggestions? We'd love to hear from you!
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="py-8 px-5 text-center border-t border-slate-700/50 bg-slate-900">
+        <p className="text-gray-400">
+          Made with ❤️ for English learners.
+        </p>
+        <p className="text-sm text-gray-500 mt-1">
+          WordHub © {new Date().getFullYear()}
+        </p>
+      </footer>
     </main>
   );
 }

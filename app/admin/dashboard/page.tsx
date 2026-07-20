@@ -12,8 +12,11 @@ import {
   orderBy,
   limit,
   startAfter,
+  startAt,
+  endAt,
   QueryDocumentSnapshot,
   DocumentData,
+  getCountFromServer,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 
@@ -64,9 +67,10 @@ export default function AdminDashboard() {
   const [totalWords, setTotalWords] = useState(0);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [firstDoc, setFirstDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const ITEMS_PER_PAGE = 15;
 
-  // ── Load Words ──
+  // ── ✅ FIX 1: Load Words with proper pagination ──
   const loadWords = useCallback(async (direction: "next" | "prev" | "first" = "first") => {
     setLoading(true);
     
@@ -86,6 +90,14 @@ export default function AdminDashboard() {
           startAfter(lastDoc),
           limit(ITEMS_PER_PAGE)
         );
+      } else if (direction === "prev" && firstDoc) {
+        // ✅ FIX: Previous page logic
+        q = query(
+          collection(db, "words"),
+          orderBy("word"),
+          endAt(firstDoc),
+          limit(ITEMS_PER_PAGE)
+        );
       } else {
         q = query(
           collection(db, "words"),
@@ -98,6 +110,7 @@ export default function AdminDashboard() {
       
       if (snapshot.empty) {
         if (direction === "next") {
+          setHasMore(false);
           setToast({ type: "info", message: "No more words to load" });
         }
         setLoading(false);
@@ -115,11 +128,21 @@ export default function AdminDashboard() {
       if (data.length > 0) {
         setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
         setFirstDoc(snapshot.docs[0]);
+        setHasMore(data.length === ITEMS_PER_PAGE);
       }
 
-      // Get total count
-      const totalSnapshot = await getDocs(collection(db, "words"));
-      setTotalWords(totalSnapshot.size);
+      // ✅ FIX: Get total count properly
+      const totalSnapshot = await getCountFromServer(collection(db, "words"));
+      setTotalWords(totalSnapshot.data().count);
+
+      // ✅ FIX: Update page number
+      if (direction === "next") {
+        setCurrentPage((prev) => prev + 1);
+      } else if (direction === "first") {
+        setCurrentPage(1);
+      } else if (direction === "prev" && currentPage > 1) {
+        setCurrentPage((prev) => prev - 1);
+      }
 
     } catch (error) {
       console.error("Error loading words:", error);
@@ -130,12 +153,13 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [lastDoc]);
+  }, [lastDoc, firstDoc, currentPage]);
 
   // ── Initial Load ──
   useEffect(() => {
     loadWords("first");
-  }, [loadWords]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Auto-clear toast ──
   useEffect(() => {
@@ -197,7 +221,7 @@ export default function AdminDashboard() {
 
   // ── Toggle Select All ──
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredWords.length) {
+    if (selectedIds.size === filteredWords.length && filteredWords.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filteredWords.map((w) => w.id)));
@@ -229,6 +253,7 @@ export default function AdminDashboard() {
         newSet.delete(id);
         return newSet;
       });
+      setTotalWords((prev) => prev - 1);
       setToast({ type: "success", message: "Word deleted successfully!" });
     } catch (error) {
       console.error("Delete error:", error);
@@ -253,6 +278,7 @@ export default function AdminDashboard() {
       }
       
       setWords((prev) => prev.filter((item) => !selectedIds.has(item.id)));
+      setTotalWords((prev) => prev - selectedIds.size);
       setSelectedIds(new Set());
       setToast({ type: "success", message: `${selectedIds.size} word(s) deleted successfully!` });
     } catch (error) {
@@ -270,12 +296,12 @@ export default function AdminDashboard() {
 
     const headers = ["Word", "Meaning", "Example", "Category", "Part of Speech", "Difficulty"];
     const rows = filteredWords.map((w) => [
-      w.word,
-      w.meaning,
-      w.example || "",
-      w.category || "",
-      w.partOfSpeech || "",
-      w.difficulty || "",
+      `"${w.word}"`,
+      `"${w.meaning}"`,
+      `"${w.example || ""}"`,
+      `"${w.category || ""}"`,
+      `"${w.partOfSpeech || ""}"`,
+      `"${w.difficulty || ""}"`,
     ]);
 
     const csvContent = [
@@ -283,12 +309,14 @@ export default function AdminDashboard() {
       ...rows.map((row) => row.join(",")),
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `wordhub-words-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
     setToast({ type: "success", message: "CSV exported successfully!" });
@@ -306,7 +334,7 @@ export default function AdminDashboard() {
 
   // ── Get Difficulty Badge ──
   const getDifficultyBadge = (difficulty?: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       Easy: "bg-green-600",
       Medium: "bg-yellow-600",
       Hard: "bg-red-600",
@@ -350,13 +378,13 @@ export default function AdminDashboard() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/add-word"
-              className="bg-green-600 hover:bg-green-700 px-5 py-3 rounded-xl font-bold transition shadow-lg shadow-green-600/20"
+              className="bg-green-600 hover:bg-green-700 px-5 py-3 rounded-xl font-bold transition shadow-lg shadow-green-600/20 cursor-pointer"
             >
               ➕ Add Word
             </Link>
             <Link
               href="/bulk-import"
-              className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-bold transition shadow-lg shadow-blue-600/20"
+              className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-bold transition shadow-lg shadow-blue-600/20 cursor-pointer"
             >
               📥 Bulk Import
             </Link>
@@ -398,14 +426,14 @@ export default function AdminDashboard() {
             {selectedIds.size > 0 && (
               <button
                 onClick={handleBulkDelete}
-                className="bg-red-600 hover:bg-red-700 px-5 py-4 rounded-xl font-bold transition"
+                className="bg-red-600 hover:bg-red-700 px-5 py-4 rounded-xl font-bold transition cursor-pointer"
               >
                 🗑 Delete Selected ({selectedIds.size})
               </button>
             )}
             <button
               onClick={exportCSV}
-              className="bg-purple-600 hover:bg-purple-700 px-5 py-4 rounded-xl font-bold transition"
+              className="bg-purple-600 hover:bg-purple-700 px-5 py-4 rounded-xl font-bold transition cursor-pointer"
             >
               📥 Export CSV
             </button>
@@ -434,7 +462,7 @@ export default function AdminDashboard() {
                         type="checkbox"
                         checked={selectedIds.size === filteredWords.length && filteredWords.length > 0}
                         onChange={toggleSelectAll}
-                        className="w-4 h-4 accent-yellow-400"
+                        className="w-4 h-4 accent-yellow-400 cursor-pointer"
                         aria-label="Select all words"
                       />
                     </th>
@@ -486,14 +514,14 @@ export default function AdminDashboard() {
                           type="checkbox"
                           checked={selectedIds.has(item.id)}
                           onChange={() => toggleSelect(item.id)}
-                          className="w-4 h-4 accent-yellow-400"
+                          className="w-4 h-4 accent-yellow-400 cursor-pointer"
                           aria-label={`Select ${item.word}`}
                         />
                       </td>
                       <td className="p-4">
                         <Link
                           href={`/words/${item.id}`}
-                          className="font-bold text-yellow-400 hover:underline"
+                          className="font-bold text-yellow-400 hover:underline cursor-pointer"
                         >
                           {item.word}
                         </Link>
@@ -515,13 +543,13 @@ export default function AdminDashboard() {
                         <div className="flex justify-center gap-2">
                           <Link
                             href={`/edit-word/${item.id}`}
-                            className="bg-yellow-500 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-sm font-bold transition text-black"
+                            className="bg-yellow-500 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-sm font-bold transition text-black cursor-pointer"
                           >
                             ✏️ Edit
                           </Link>
                           <button
                             onClick={() => handleDelete(item.id)}
-                            className="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg text-sm font-bold transition"
+                            className="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer"
                           >
                             🗑️
                           </button>
@@ -532,33 +560,33 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
 
-              {/* ── Pagination ── */}
-              <div className="flex justify-between items-center p-4 border-t border-slate-700">
+              {/* ── ✅ FIXED: Pagination ── */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 border-t border-slate-700">
                 <span className="text-gray-400 text-sm">
-                  Showing {filteredWords.length} of {totalWords} words
+                  Page {currentPage} • Showing {filteredWords.length} of {totalWords} words
                 </span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => loadWords("first")}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50"
-                    disabled={loading || words.length === 0}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                    disabled={loading || currentPage === 1}
                   >
                     ◀◀
                   </button>
                   <button
                     onClick={() => loadWords("prev")}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50"
-                    disabled={loading || words.length === 0}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                    disabled={loading || currentPage === 1}
                   >
                     ◀
                   </button>
-                  <span className="px-4 py-2 bg-slate-800 rounded-lg">
+                  <span className="px-4 py-2 bg-slate-800 rounded-lg font-bold text-yellow-400 min-w-[50px] text-center">
                     {currentPage}
                   </span>
                   <button
                     onClick={() => loadWords("next")}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50"
-                    disabled={loading || words.length < ITEMS_PER_PAGE}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                    disabled={loading || !hasMore || words.length < ITEMS_PER_PAGE}
                   >
                     ▶
                   </button>
@@ -577,13 +605,13 @@ export default function AdminDashboard() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dictionary"
-              className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-bold transition"
+              className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-bold transition cursor-pointer"
             >
               📚 Dictionary
             </Link>
             <Link
               href="/"
-              className="bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-xl font-bold transition"
+              className="bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-xl font-bold transition cursor-pointer"
             >
               🏠 Home
             </Link>
