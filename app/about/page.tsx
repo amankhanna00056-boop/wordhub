@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { db, auth } from "../firebase";
 import { 
@@ -15,6 +15,14 @@ import {
   SparklesIcon,
   AcademicCapIcon,
   PencilSquareIcon,
+  UserGroupIcon,
+  GlobeAltIcon,
+  RocketLaunchIcon,
+  ShieldCheckIcon,
+  HeartIcon,
+  ChatBubbleLeftRightIcon,
+  EnvelopeIcon,
+  CheckBadgeIcon,
 } from "@heroicons/react/24/outline";
 
 interface WordStats {
@@ -22,22 +30,115 @@ interface WordStats {
   categories: number;
 }
 
+// ============================
+// COUNTER ANIMATION
+// ============================
+const AnimatedCounter = ({ target, label, suffix = "" }: { target: number; label: string; suffix?: string }) => {
+  const [count, setCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    let start = 0;
+    const duration = 2000;
+    const step = Math.max(1, Math.floor(target / 60));
+
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(start);
+      }
+    }, 30);
+
+    return () => clearInterval(timer);
+  }, [isVisible, target]);
+
+  return (
+    <div ref={ref} className="text-center">
+      <div className="text-4xl md:text-5xl font-extrabold text-yellow-400">
+        {count.toLocaleString()}{suffix}
+      </div>
+      <div className="text-gray-300 font-medium mt-1">{label}</div>
+    </div>
+  );
+};
+
+// ============================
+// TESTIMONIALS
+// ============================
+const testimonials = [
+  {
+    name: "Sarah Johnson",
+    role: "English Teacher",
+    text: "WordHub has transformed how my students learn vocabulary. The games and quizzes keep them engaged!",
+    avatar: "👩‍🏫",
+  },
+  {
+    name: "Michael Chen",
+    role: "Software Engineer",
+    text: "I use WordHub daily to improve my vocabulary. The word scramble game is my favorite!",
+    avatar: "👨‍💻",
+  },
+  {
+    name: "Emma Wilson",
+    role: "University Student",
+    text: "The dictionary is comprehensive and the flashcard system helped me ace my IELTS exam!",
+    avatar: "👩‍🎓",
+  },
+];
+
+// ============================
+// TEAM MEMBERS
+// ============================
+const teamMembers = [
+  { name: "Aman Khanna", role: "Founder & Developer", icon: "👨‍💻", color: "bg-blue-500/20" },
+  { name: "Simran Kaur", role: "UX Designer", icon: "👩‍🎨", color: "bg-purple-500/20" },
+  { name: "Raj Singh", role: "Content Manager", icon: "📝", color: "bg-green-500/20" },
+];
+
+// ============================
+// MAIN COMPONENT
+// ============================
 export default function AboutPage() {
   const router = useRouter();
   const [stats, setStats] = useState<WordStats>({ total: 0, categories: 0 });
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState("");
 
-  // ✅ FIX: Remove auto-redirect - only track user state
+  // ── Auth State ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      // ❌ REMOVED: router.push("/dictionary") - No auto-redirect
     });
     return () => unsubscribe();
-  }, []); // ✅ Removed router from dependencies
+  }, []);
 
+  // ── Fetch Stats ──
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -62,7 +163,7 @@ export default function AboutPage() {
     fetchStats();
   }, []);
 
-  // ✅ Sign in with Google
+  // ── Sign in with Google ──
   const signInWithGoogle = async () => {
     setAuthLoading(true);
     try {
@@ -70,8 +171,6 @@ export default function AboutPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       console.log("✅ Signed in:", user.displayName);
-      
-      // ✅ Only redirect AFTER successful sign-in
       router.push("/dictionary");
     } catch (error: any) {
       console.error("❌ Sign in error:", error);
@@ -86,18 +185,26 @@ export default function AboutPage() {
     setAuthLoading(false);
   };
 
-  // ✅ Navigation Functions - No auto redirect
+  // ── Navigation ──
   const goToDictionary = () => {
     if (user) {
-      // ✅ User already signed in - go directly
       router.push("/dictionary");
     } else {
-      // ✅ User not signed in - show sign-in popup
       signInWithGoogle();
     }
   };
 
-  // Features Data (same as before)
+  // ── Newsletter Signup ──
+  const handleNewsletter = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email) {
+      setNewsletterStatus("✅ Thank you! You're now subscribed!");
+      setEmail("");
+      setTimeout(() => setNewsletterStatus(""), 3000);
+    }
+  };
+
+  // ── Features Data ──
   const features = [
     {
       icon: <BookOpenIcon className="w-8 h-8" />,
@@ -184,21 +291,22 @@ export default function AboutPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white">
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      
       {/* ===== HERO SECTION ===== */}
-      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-20 px-5 text-center overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-72 h-72 bg-yellow-400 rounded-full blur-3xl"></div>
+      <section className="relative py-24 px-5 text-center overflow-hidden">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-yellow-400 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl"></div>
         </div>
         
         <div className="relative max-w-5xl mx-auto">
-          <div className="inline-block px-6 py-2 bg-yellow-400/20 border border-yellow-400/30 rounded-full text-yellow-400 font-semibold text-sm mb-6">
+          <div className="inline-block px-6 py-2 bg-yellow-400/20 border border-yellow-400/30 rounded-full text-yellow-400 font-semibold text-sm mb-6 animate-pulse">
             📚 Welcome to WordHub
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-extrabold mb-6">
-            Learn Smarter.
+          <h1 className="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
+            <span className="text-white">Learn Smarter.</span>
             <span className="text-yellow-400 block mt-2">Play Better.</span>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-400 block mt-2">
               Build Your Vocabulary.
@@ -211,12 +319,11 @@ export default function AboutPage() {
             teachers, gamers, and English learners.
           </p>
           
-          {/* Buttons with Sign in with Google + Cursor Pointer */}
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             <button
               onClick={goToDictionary}
               disabled={authLoading}
-              className="px-8 py-4 bg-yellow-400 text-slate-900 rounded-xl font-bold text-lg hover:bg-yellow-300 transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-slate-900 rounded-xl font-bold text-lg hover:from-yellow-300 hover:to-yellow-400 transition transform hover:scale-105 disabled:opacity-50 shadow-lg shadow-yellow-500/30"
             >
               {authLoading ? (
                 <>
@@ -231,48 +338,28 @@ export default function AboutPage() {
             </button>
             
             <button
-              onClick={goToDictionary}
-              className="px-8 py-4 bg-slate-700 border border-slate-600 rounded-xl font-bold text-lg hover:bg-slate-600 transition cursor-pointer"
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-8 py-4 bg-slate-700 border border-slate-600 rounded-xl font-bold text-lg hover:bg-slate-600 transition text-white"
             >
-              📖 Try Dictionary
+              📖 Learn More
             </button>
           </div>
 
-          {/* Show user info if logged in */}
           {user && (
-            <div className="mt-6 text-sm text-gray-400">
+            <div className="mt-6 text-sm text-gray-300 animate-fadeIn">
               👋 Welcome, <span className="text-yellow-400 font-bold">{user.displayName}</span>!
             </div>
           )}
         </div>
       </section>
 
-      {/* ===== STATISTICS ===== */}
-      <section className="bg-slate-800/50 py-16 px-5 border-y border-slate-700">
-        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          <div className="space-y-2">
-            <div className="text-4xl md:text-5xl font-extrabold text-yellow-400">
-              {loading ? "..." : stats.total.toLocaleString()}+
-            </div>
-            <div className="text-gray-400 font-medium">Words Available</div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="text-4xl md:text-5xl font-extrabold text-green-400">
-              {loading ? "..." : stats.categories}+
-            </div>
-            <div className="text-gray-400 font-medium">Categories</div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="text-4xl md:text-5xl font-extrabold text-blue-400">100%</div>
-            <div className="text-gray-400 font-medium">Free to Use</div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="text-4xl md:text-5xl font-extrabold text-purple-400">24/7</div>
-            <div className="text-gray-400 font-medium">Always Available</div>
-          </div>
+      {/* ===== STATISTICS (Animated Counters) ===== */}
+      <section className="bg-slate-800/30 py-16 px-5 border-y border-slate-700">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+          <AnimatedCounter target={stats.total || 0} label="Words Available" />
+          <AnimatedCounter target={stats.categories || 0} label="Categories" />
+          <AnimatedCounter target={100} label="Free to Use" suffix="%" />
+          <AnimatedCounter target={24} label="Always Available" suffix="/7" />
         </div>
       </section>
 
@@ -282,7 +369,8 @@ export default function AboutPage() {
           🎯 Our Mission
         </div>
         <h2 className="text-4xl md:text-5xl font-bold mb-6">
-          Making Learning <span className="text-yellow-400">Simple</span>, 
+          <span className="text-white">Making Learning</span>
+          <span className="text-yellow-400"> Simple</span>, 
           <span className="text-green-400"> Fast</span> & 
           <span className="text-blue-400"> Enjoyable</span>
         </h2>
@@ -294,14 +382,15 @@ export default function AboutPage() {
       </section>
 
       {/* ===== FEATURES ===== */}
-      <section className="py-20 px-5 bg-slate-800/30">
+      <section id="features" className="py-20 px-5 bg-slate-800/20">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-block px-6 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full text-purple-400 font-semibold text-sm mb-4">
               ✨ What You Can Do
             </div>
             <h2 className="text-4xl md:text-5xl font-bold">
-              All-in-One <span className="text-yellow-400">Word Platform</span>
+              <span className="text-white">All-in-One</span>
+              <span className="text-yellow-400"> Word Platform</span>
             </h2>
           </div>
 
@@ -312,11 +401,12 @@ export default function AboutPage() {
                 className={`p-6 rounded-2xl border ${feature.color} backdrop-blur-sm hover:scale-105 transition duration-300`}
               >
                 <div className="text-yellow-400 mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-bold mb-4">{feature.title}</h3>
+                <h3 className="text-xl font-bold text-white mb-4">{feature.title}</h3>
                 <ul className="space-y-2 text-gray-300">
                   {feature.items.map((item, i) => (
                     <li key={i} className="flex items-center gap-2 text-sm">
-                      <span className="text-green-400">✓</span> {item}
+                      <CheckBadgeIcon className="w-4 h-4 text-green-400" />
+                      <span className="text-gray-200">{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -333,7 +423,8 @@ export default function AboutPage() {
             ⭐ Why Choose Us
           </div>
           <h2 className="text-4xl md:text-5xl font-bold">
-            Why <span className="text-yellow-400">WordHub</span>?
+            <span className="text-white">Why</span>
+            <span className="text-yellow-400"> WordHub</span>?
           </h2>
         </div>
 
@@ -341,7 +432,7 @@ export default function AboutPage() {
           {reasons.map((reason, idx) => (
             <div
               key={idx}
-              className="bg-slate-800/50 p-6 rounded-xl text-center hover:bg-slate-700/50 transition border border-slate-700/50"
+              className="bg-slate-800/50 p-6 rounded-xl text-center hover:bg-slate-700/50 transition hover:scale-105 border border-slate-700/50"
             >
               <div className="text-3xl mb-2">{reason.icon}</div>
               <h4 className="font-bold text-white">{reason.title}</h4>
@@ -351,15 +442,69 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* ===== TESTIMONIALS ===== */}
+      <section className="py-20 px-5 bg-slate-800/20">
+        <div className="max-w-5xl mx-auto text-center">
+          <div className="inline-block px-6 py-2 bg-pink-500/20 border border-pink-500/30 rounded-full text-pink-400 font-semibold text-sm mb-4">
+            💬 Testimonials
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-12">
+            <span className="text-white">What Our</span>
+            <span className="text-yellow-400"> Users Say</span>
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {testimonials.map((testimonial, idx) => (
+              <div
+                key={idx}
+                className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700 hover:border-yellow-400/50 transition"
+              >
+                <div className="text-4xl mb-3">{testimonial.avatar}</div>
+                <p className="text-gray-200 text-sm italic">"{testimonial.text}"</p>
+                <h4 className="font-bold text-white mt-4">{testimonial.name}</h4>
+                <p className="text-gray-400 text-xs">{testimonial.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== TEAM ===== */}
+      <section className="py-20 px-5 max-w-4xl mx-auto text-center">
+        <div className="inline-block px-6 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 font-semibold text-sm mb-4">
+          👥 Meet the Team
+        </div>
+        <h2 className="text-4xl md:text-5xl font-bold mb-12">
+          <span className="text-white">Built with</span>
+          <span className="text-yellow-400"> ❤️</span>
+          <span className="text-white"> by</span>
+        </h2>
+
+        <div className="flex flex-wrap justify-center gap-6">
+          {teamMembers.map((member, idx) => (
+            <div
+              key={idx}
+              className={`${member.color} p-6 rounded-2xl border border-slate-700 min-w-[150px] hover:scale-105 transition`}
+            >
+              <div className="text-4xl mb-2">{member.icon}</div>
+              <h4 className="font-bold text-white">{member.name}</h4>
+              <p className="text-gray-300 text-xs">{member.role}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ===== ROADMAP ===== */}
-      <section className="py-20 px-5 bg-slate-800/30">
+      <section className="py-20 px-5 bg-slate-800/20">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-block px-6 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 font-semibold text-sm mb-4">
               🚀 Roadmap
             </div>
             <h2 className="text-4xl md:text-5xl font-bold">
-              Our <span className="text-yellow-400">Journey</span> Ahead
+              <span className="text-white">Our</span>
+              <span className="text-yellow-400"> Journey</span>
+              <span className="text-white"> Ahead</span>
             </h2>
           </div>
 
@@ -367,12 +512,12 @@ export default function AboutPage() {
             {roadmap.map((item, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-4 bg-slate-800 p-4 rounded-xl hover:bg-slate-700 transition"
+                className="flex items-center gap-4 bg-slate-800/60 p-4 rounded-xl hover:bg-slate-700/50 transition border border-slate-700"
               >
                 <span className="text-2xl">{item.status}</span>
-                <div className="flex-1">
+                <div className="flex-1 text-left">
                   <h4 className="font-bold text-white">{item.title}</h4>
-                  <p className="text-sm text-gray-400">{item.desc}</p>
+                  <p className="text-sm text-gray-300">{item.desc}</p>
                 </div>
                 <span className={`text-sm font-semibold px-3 py-1 rounded-full ${
                   item.status === "✅" 
@@ -389,14 +534,16 @@ export default function AboutPage() {
 
       {/* ===== VISION ===== */}
       <section className="py-20 px-5 max-w-4xl mx-auto text-center">
-        <div className="inline-block px-6 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 font-semibold text-sm mb-6">
+        <div className="inline-block px-6 py-2 bg-cyan-500/20 border border-cyan-500/30 rounded-full text-cyan-400 font-semibold text-sm mb-6">
           🌍 Our Vision
         </div>
         <h2 className="text-4xl md:text-5xl font-bold mb-6">
-          A <span className="text-yellow-400">Global</span> Word-Learning 
+          <span className="text-white">A</span>
+          <span className="text-yellow-400"> Global</span>
+          <span className="text-white"> Word-Learning</span>
           <span className="text-green-400"> Ecosystem</span>
         </h2>
-        <p className="text-xl text-gray-300 leading-relaxed">
+        <p className="text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
           Our vision is to become one of the world's most useful word-learning 
           platforms by combining dictionaries, vocabulary tools, AI, and 
           educational games in one place.
@@ -404,20 +551,21 @@ export default function AboutPage() {
       </section>
 
       {/* ===== WHO USES ===== */}
-      <section className="py-20 px-5 bg-slate-800/30">
+      <section className="py-20 px-5 bg-slate-800/20">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-block px-6 py-2 bg-pink-500/20 border border-pink-500/30 rounded-full text-pink-400 font-semibold text-sm mb-4">
             👥 Who Uses WordHub
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-12">
-            Built for <span className="text-yellow-400">Everyone</span>
+            <span className="text-white">Built for</span>
+            <span className="text-yellow-400"> Everyone</span>
           </h2>
 
           <div className="flex flex-wrap justify-center gap-4">
             {users.map((user, idx) => (
               <div
                 key={idx}
-                className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 hover:border-yellow-400/50 transition"
+                className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 hover:border-yellow-400/50 transition hover:scale-105"
               >
                 <span className="text-2xl mr-2">{user.icon}</span>
                 <span className="font-medium text-white">{user.label}</span>
@@ -433,14 +581,16 @@ export default function AboutPage() {
           ⚙️ Technologies
         </div>
         <h2 className="text-4xl md:text-5xl font-bold mb-12">
-          Built with <span className="text-yellow-400">Modern</span> Tech
+          <span className="text-white">Built with</span>
+          <span className="text-yellow-400"> Modern</span>
+          <span className="text-white"> Tech</span>
         </h2>
 
         <div className="flex flex-wrap justify-center gap-4">
           {techStack.map((tech, idx) => (
             <div
               key={idx}
-              className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 flex items-center gap-3"
+              className="bg-slate-800 px-6 py-4 rounded-xl border border-slate-700 flex items-center gap-3 hover:scale-105 transition"
             >
               <span className={`text-2xl ${tech.color}`}>{tech.icon}</span>
               <span className="font-semibold text-white">{tech.name}</span>
@@ -449,27 +599,67 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* ===== NEWSLETTER ===== */}
+      <section className="py-20 px-5 bg-slate-800/30 border-y border-slate-700">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="inline-block px-6 py-2 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 font-semibold text-sm mb-6">
+            📬 Stay Updated
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            <span className="text-white">Subscribe to Our</span>
+            <span className="text-yellow-400"> Newsletter</span>
+          </h2>
+          <p className="text-gray-300 mb-8">
+            Get word of the day, learning tips, and new features directly in your inbox.
+          </p>
+
+          <form onSubmit={handleNewsletter} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+              className="flex-1 p-4 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder:text-gray-400 focus:outline-none focus:border-yellow-400 transition"
+            />
+            <button
+              type="submit"
+              className="px-6 py-4 bg-yellow-400 text-slate-900 rounded-xl font-bold hover:bg-yellow-300 transition"
+            >
+              Subscribe 🔔
+            </button>
+          </form>
+
+          {newsletterStatus && (
+            <p className="mt-4 text-green-400 font-semibold animate-fadeIn">{newsletterStatus}</p>
+          )}
+        </div>
+      </section>
+
       {/* ===== CONTACT ===== */}
-      <section className="py-20 px-5 bg-slate-800/30 border-t border-slate-700">
+      <section className="py-20 px-5 bg-slate-800/20">
         <div className="max-w-2xl mx-auto text-center">
           <div className="inline-block px-6 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 font-semibold text-sm mb-6">
             📬 Contact Us
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Need <span className="text-yellow-400">Help</span>?
+            <span className="text-white">Need</span>
+            <span className="text-yellow-400"> Help</span>?
           </h2>
           
-          <div className="space-y-4 text-gray-300">
-            <p className="flex items-center justify-center gap-3">
-              <span className="text-xl">📧</span> support@wordhub.com
+          <div className="space-y-4">
+            <p className="flex items-center justify-center gap-3 text-gray-200">
+              <EnvelopeIcon className="w-6 h-6 text-yellow-400" />
+              support@wordhub.com
             </p>
-            <p className="flex items-center justify-center gap-3">
-              <span className="text-xl">💬</span> feedback@wordhub.com
+            <p className="flex items-center justify-center gap-3 text-gray-200">
+              <ChatBubbleLeftRightIcon className="w-6 h-6 text-yellow-400" />
+              feedback@wordhub.com
             </p>
           </div>
 
-          <div className="mt-8 p-6 bg-slate-800 rounded-xl border border-slate-700">
-            <p className="text-gray-400 text-sm">
+          <div className="mt-8 p-6 bg-slate-800/50 rounded-xl border border-slate-700">
+            <p className="text-gray-300 text-sm">
               💡 Have suggestions? We'd love to hear from you!
             </p>
           </div>
@@ -478,13 +668,36 @@ export default function AboutPage() {
 
       {/* ===== FOOTER ===== */}
       <footer className="py-8 px-5 text-center border-t border-slate-700/50 bg-slate-900">
+        <div className="flex justify-center gap-6 text-2xl mb-4">
+          <span className="hover:scale-125 transition cursor-pointer">🐦</span>
+          <span className="hover:scale-125 transition cursor-pointer">📘</span>
+          <span className="hover:scale-125 transition cursor-pointer">📸</span>
+          <span className="hover:scale-125 transition cursor-pointer">💼</span>
+        </div>
         <p className="text-gray-400">
-          Made with ❤️ for English learners.
+          Made with <HeartIcon className="w-4 h-4 inline text-red-500" /> for English learners.
         </p>
         <p className="text-sm text-gray-500 mt-1">
           WordHub © {new Date().getFullYear()}
         </p>
       </footer>
+
+      {/* ── Custom Animations ── */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out;
+        }
+      `}</style>
     </main>
   );
 }

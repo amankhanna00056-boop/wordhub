@@ -804,7 +804,8 @@ export default function Dashboard() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(251, 191, 36, 0.5);
         }
-      `}</style>
+      `}
+      </style>
     </main>
   );
 }
